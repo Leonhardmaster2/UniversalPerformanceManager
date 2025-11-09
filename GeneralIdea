@@ -1,0 +1,92 @@
+ 
+
+> **Ein generelles Runtime-Settings-System**, das **Performance-Daten live anzeigt** und **alle wichtigen Grafik/Gameplay/Audio-Einstellungen zur Laufzeit ändern kann**, und das **im gepackten Build vollständig erhalten bleibt**.
+
+Kein Schnickschnack, keine Editor-Abhängigkeit.
+
+---
+
+## **Was das System tut – kompakt:**
+
+1. **Performance Overlay**
+
+   * FPS (avg, min, max)
+   * CPU frametime / GPU frametime
+   * VRAM / RAM Nutzung
+   * Draw Calls / Primitive Count
+   * Thread Load (Game / Render / RHI)
+
+2. **Runtime Settings Panel (UMG oder C++)**
+
+   * Aufrufbar im **Build** (ESC → Options)
+   * Alle Qualitätseinstellungen per Schieberegler / Drop-Down
+   * Änderungen wirken **sofort** ohne Spielneustart
+
+3. **Persistente Speicherung**
+
+   * Alles landet in
+     `Saved/UPM/Settings.json`
+     → lädt beim Start automatisch
+     → wirkt **auch im endgültigen Build**
+
+4. **Keine Engine-Configs anfassen**
+
+   * Settings nur über:
+
+     * `UGameUserSettings`
+     * `Console Variables`
+     * JSON-Save
+
+→ Dadurch ist es **build-stabil**, auch auf Release-Builds, Steam, itch, Konsole, etc.
+
+---
+
+## **Welche Settings genau? (funktionieren garantiert im Build)**
+
+| Kategorie       | Beispiel-Funktionen                                      | Implementierung                            |
+| --------------- | -------------------------------------------------------- | ------------------------------------------ |
+| **Grafik**      | AA, Shadows, View Distance, Post Process, Texturqualität | `UGameUserSettings` + `sg.*` CVars         |
+| **Rendering**   | Lumen / RT an/aus, SSAO an/aus, SSR                      | `r.*` CVars                                |
+| **Performance** | VSync an/aus, Framelimit                                 | `r.VSync`, `t.MaxFPS`                      |
+| **Display**     | Auflösung, Windowed/Fullscreen                           | `UGameUserSettings->SetScreenResolution()` |
+| **Audio**       | Master / SFX / Music Volume                              | `UAudioMixerBlueprintLibrary::SetVolume()` |
+| **Gameplay**    | FOV, Sensitivity                                         | Beliebige eigene JSON-Variablen            |
+
+Alles **änderbar zur Laufzeit.**
+Alles **persistiert.**
+
+---
+
+## **Warum das für fast jeden Entwickler nützlich ist**
+
+Jedes Spiel – egal ob RPG, Shooter, Indie, Survival – braucht:
+
+* FPS-Overlay, um Performance zu testen
+* Ein verständliches Optionen-Menü im Build
+* Persistente Einstellungen
+
+Die meisten Teams bauen das **jedes Mal neu** → Zeitverschwendung.
+Du gibst ihnen **ein fertiges System**.
+
+---
+
+## **Produktname (Kurz, verständlich, marktfähig)**
+
+**Universal Runtime Settings & Performance Overlay**
+oder kurz: **UPM Settings Core**
+
+---
+
+## **USP (Was dieses Asset von anderen unterscheidet)**
+
+| Feature                               | Andere Plugins | Dein System |
+| ------------------------------------- | -------------- | ----------- |
+| Funktioniert im **Build**             | oft nein       | **ja**      |
+| Ändert Settings **ohne Neustart**     | selten         | **ja**      |
+| **Persistiert** automatisch           | selten         | **ja**      |
+| Kombiniert **Performance + Settings** | praktisch nie  | **ja**      |
+| Keine Engine-Modifikationen           | oft kritisch   | **sauber**  |
+
+
+
+
