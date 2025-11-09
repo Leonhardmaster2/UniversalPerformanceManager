@@ -1,0 +1,36 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0.0",
+	"FriendlyName": "Universal Performance Manager",
+	"Description": "Comprehensive runtime settings and performance monitoring system with 65+ settings. Includes graphics, rendering, performance, display, audio, gameplay, accessibility, network, and debug controls. Works in packaged builds.",
+	"Category": "Performance",
+	"CreatedBy": "Universal Performance Manager",
+	"CreatedByURL": "",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": false,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "UniversalPerformanceManager",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"WhitelistPlatforms": [
+				"Win64",
+				"Linux",
+				"Mac",
+				"Android",
+				"IOS",
+				"PS4",
+				"PS5",
+				"XboxOne",
+				"XSX"
+			]
+		}
+	],
+	"Plugins": []
+}

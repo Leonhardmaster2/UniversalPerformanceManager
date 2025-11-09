@@ -11,13 +11,16 @@
 - **Rendering statistics**: Draw calls, primitive count
 - **Thread load monitoring**: Game, Render, and RHI threads
 
-### ⚙️ Runtime Settings Management
-- **Graphics settings**: Anti-aliasing, shadows, view distance, post-process, texture quality
-- **Rendering features**: Lumen, ray tracing, SSAO, SSR, motion blur, bloom
-- **Performance controls**: VSync, frame rate limiting
-- **Display options**: Resolution, window mode
-- **Audio controls**: Master, SFX, and Music volume
-- **Gameplay settings**: FOV, mouse sensitivity
+### ⚙️ Runtime Settings Management (65+ Settings)
+- **Graphics settings** (8): Anti-aliasing, shadows, view distance, post-process, texture quality, effects, foliage, shading
+- **Rendering features** (19): Lumen, ray tracing, SSAO, SSR, motion blur, bloom, DOF, lens flares, chromatic aberration, film grain, vignette, volumetric fog, anisotropic filtering, TAA, upscaling (DLSS/FSR/XeSS/TSR), GI quality, reflections, SSGI, contact shadows
+- **Performance controls** (8): VSync, frame rate limiting, dynamic resolution, triple buffering, async compute, LOD distance, process priority
+- **Display options** (12): Resolution, window mode, brightness, contrast, HDR, monitor selection, borderless window, screen percentage, menu FOV, aspect ratio, safe zones
+- **Audio controls** (13): Master, SFX, music, voice/dialog, ambient, UI sound, voice chat volumes, audio quality, surround sound, spatial audio, dynamic range, subtitle size & opacity
+- **Gameplay settings** (13): FOV, mouse/controller sensitivity, dead zones, aim assist, camera shake, head bob, vibration, crouch/sprint toggle, auto-run, camera smoothing
+- **Accessibility** (7): Colorblind modes, UI/text scaling, high contrast, screen reader, reduced motion, photosensitivity mode
+- **Network settings** (5): Ping threshold, network smoothing, bandwidth limit, region preference, crossplay
+- **Debug/Advanced** (5): Performance overlay, network stats, developer mode, crash reporting, benchmark mode
 
 ### 💾 Persistent Storage
 - Settings automatically saved to `Saved/UPM/Settings.json`
