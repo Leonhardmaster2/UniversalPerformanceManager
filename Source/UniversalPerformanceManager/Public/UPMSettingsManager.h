@@ -970,6 +970,70 @@ public:
     UFUNCTION(BlueprintCallable, Category = "UPM|Debug")
     void SetBenchmarkMode(bool bEnabled);
 
+    // ==================== Convenient Wrapper Functions ====================
+    // Simple, commonly-used functions for quick setup
+
+    /**
+     * Set overall graphics quality (0-4: Low, Medium, High, Ultra, Epic)
+     * Sets all graphics settings to the same quality level
+     */
+    UFUNCTION(BlueprintCallable, Category = "UPM|Quick")
+    void SetOverallGraphicsQuality(int32 Quality);
+
+    /**
+     * Set maximum frame rate (0 = unlimited)
+     */
+    UFUNCTION(BlueprintCallable, Category = "UPM|Quick")
+    void SetMaxFrameRate(float MaxFPS);
+
+    /**
+     * Enable/disable ray tracing
+     */
+    UFUNCTION(BlueprintCallable, Category = "UPM|Quick")
+    void SetRayTracing(bool bEnable);
+
+    /**
+     * Set resolution by width and height
+     */
+    UFUNCTION(BlueprintCallable, Category = "UPM|Quick")
+    void SetResolutionSimple(int32 Width, int32 Height);
+
+    /**
+     * Toggle fullscreen mode
+     */
+    UFUNCTION(BlueprintCallable, Category = "UPM|Quick")
+    void SetFullscreen(bool bFullscreen);
+
+    /**
+     * Set master audio volume (0.0 - 1.0)
+     */
+    UFUNCTION(BlueprintCallable, Category = "UPM|Quick")
+    void SetVolume(float Volume);
+
+    /**
+     * Apply quality preset: 0=Low, 1=Medium, 2=High, 3=Ultra, 4=Epic
+     */
+    UFUNCTION(BlueprintCallable, Category = "UPM|Quick")
+    void ApplyQualityPreset(int32 PresetLevel);
+
+    /**
+     * Enable/disable all post-process effects at once
+     */
+    UFUNCTION(BlueprintCallable, Category = "UPM|Quick")
+    void SetAllPostProcessEffects(bool bEnable);
+
+    /**
+     * Quick performance mode - disables expensive features
+     */
+    UFUNCTION(BlueprintCallable, Category = "UPM|Quick")
+    void EnablePerformanceMode(bool bEnable);
+
+    /**
+     * Quick quality mode - enables all visual features
+     */
+    UFUNCTION(BlueprintCallable, Category = "UPM|Quick")
+    void EnableQualityMode(bool bEnable);
+
     // ==================== Persistence ====================
 
     UFUNCTION(BlueprintCallable, Category = "UPM|Persistence")

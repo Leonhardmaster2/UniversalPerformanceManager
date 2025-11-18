@@ -159,10 +159,18 @@ TArray<FIntPoint> UUPMSettingsPanelWidget::GetAvailableResolutions() const
 {
     TArray<FIntPoint> Resolutions;
 
+    // UE 5.6+ compatible resolution retrieval
     UGameUserSettings* GameSettings = UGameUserSettings::GetGameUserSettings();
     if (GameSettings)
     {
-        GameSettings->GetSupportedResolutions(Resolutions);
+        FScreenResolutionArray SupportedResolutions;
+        if (RHIGetAvailableResolutions(SupportedResolutions, true))
+        {
+            for (const FScreenResolutionRHI& Resolution : SupportedResolutions)
+            {
+                Resolutions.AddUnique(FIntPoint(Resolution.Width, Resolution.Height));
+            }
+        }
     }
 
     // Add some common resolutions if none found

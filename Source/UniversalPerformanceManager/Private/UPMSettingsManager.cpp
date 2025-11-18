@@ -119,16 +119,17 @@ void UUPMSettingsManager::UpdatePerformanceMetrics(float DeltaTime)
     FPlatformMemoryStats MemoryStats = FPlatformMemory::GetStats();
     PerformanceMetrics.RAMUsageMB = static_cast<float>(MemoryStats.UsedPhysical) / (1024.0f * 1024.0f);
 
-    // VRAM usage (if available)
+    // VRAM usage (UE 5.6+ compatible)
     if (GDynamicRHI)
     {
-        uint64 UsedVRAM = 0;
-        RHIGetResourceMemoryUsage(UsedVRAM);
-
-        if (UsedVRAM > 0)
-        {
-            PerformanceMetrics.VRAMUsageMB = static_cast<float>(UsedVRAM) / (1024.0f * 1024.0f);
-        }
+        // Use RHI stats if available
+        #if STATS
+        const FTextureMemoryStats Stats = RHIGetTextureMemoryStats();
+        PerformanceMetrics.VRAMUsageMB = static_cast<float>(Stats.DedicatedVideoMemory + Stats.DedicatedSystemMemory) / (1024.0f * 1024.0f);
+        #else
+        // Fallback estimation based on texture pool size
+        PerformanceMetrics.VRAMUsageMB = 0.0f;
+        #endif
     }
 
     // Thread load (normalized 0-1)
@@ -953,6 +954,183 @@ void UUPMSettingsManager::ApplyDebugSettings()
     }
 }
 
+// ==================== Convenient Wrapper Functions ====================
+
+void UUPMSettingsManager::SetOverallGraphicsQuality(int32 Quality)
+{
+    Quality = FMath::Clamp(Quality, 0, 4);
+
+    CurrentSettings.Graphics.AntiAliasingQuality = Quality;
+    CurrentSettings.Graphics.ShadowQuality = Quality;
+    CurrentSettings.Graphics.ViewDistanceQuality = Quality;
+    CurrentSettings.Graphics.PostProcessQuality = Quality;
+    CurrentSettings.Graphics.TextureQuality = Quality;
+    CurrentSettings.Graphics.EffectsQuality = Quality;
+    CurrentSettings.Graphics.FoliageQuality = Quality;
+    CurrentSettings.Graphics.ShadingQuality = Quality;
+
+    ApplyGraphicsSettings();
+}
+
+void UUPMSettingsManager::SetMaxFrameRate(float MaxFPS)
+{
+    SetFrameRateLimit(MaxFPS);
+}
+
+void UUPMSettingsManager::SetRayTracing(bool bEnable)
+{
+    SetRayTracingEnabled(bEnable);
+}
+
+void UUPMSettingsManager::SetResolutionSimple(int32 Width, int32 Height)
+{
+    SetResolution(FIntPoint(Width, Height));
+}
+
+void UUPMSettingsManager::SetFullscreen(bool bFullscreen)
+{
+    SetWindowMode(bFullscreen ? EWindowMode::Fullscreen : EWindowMode::Windowed);
+}
+
+void UUPMSettingsManager::SetVolume(float Volume)
+{
+    SetMasterVolume(Volume);
+}
+
+void UUPMSettingsManager::ApplyQualityPreset(int32 PresetLevel)
+{
+    PresetLevel = FMath::Clamp(PresetLevel, 0, 4);
+
+    // Graphics quality
+    SetOverallGraphicsQuality(PresetLevel);
+
+    // Rendering features based on preset
+    if (PresetLevel >= 3) // High, Ultra, Epic
+    {
+        SetLumenEnabled(true);
+        SetSSAOEnabled(true);
+        SetSSREnabled(true);
+        SetMotionBlurEnabled(true);
+        SetBloomEnabled(true);
+        SetDepthOfFieldEnabled(true);
+        SetLensFlaresEnabled(true);
+        SetVignetteEnabled(true);
+        SetVolumetricFogEnabled(true);
+        SetTAAEnabled(true);
+        SetContactShadowsEnabled(true);
+
+        SetGlobalIlluminationQuality(PresetLevel);
+        SetReflectionQuality(PresetLevel);
+        SetAnisotropicFiltering(PresetLevel);
+    }
+    else if (PresetLevel >= 2) // Medium
+    {
+        SetLumenEnabled(false);
+        SetSSAOEnabled(true);
+        SetSSREnabled(true);
+        SetMotionBlurEnabled(true);
+        SetBloomEnabled(true);
+        SetDepthOfFieldEnabled(false);
+        SetLensFlaresEnabled(false);
+        SetVignetteEnabled(true);
+        SetVolumetricFogEnabled(false);
+        SetTAAEnabled(true);
+        SetContactShadowsEnabled(false);
+
+        SetGlobalIlluminationQuality(2);
+        SetReflectionQuality(2);
+        SetAnisotropicFiltering(2);
+    }
+    else // Low
+    {
+        SetLumenEnabled(false);
+        SetSSAOEnabled(false);
+        SetSSREnabled(false);
+        SetMotionBlurEnabled(false);
+        SetBloomEnabled(true);
+        SetDepthOfFieldEnabled(false);
+        SetLensFlaresEnabled(false);
+        SetVignetteEnabled(false);
+        SetVolumetricFogEnabled(false);
+        SetTAAEnabled(false);
+        SetContactShadowsEnabled(false);
+
+        SetGlobalIlluminationQuality(0);
+        SetReflectionQuality(0);
+        SetAnisotropicFiltering(0);
+    }
+
+    // Ray tracing only for Ultra and Epic
+    SetRayTracingEnabled(PresetLevel >= 4);
+
+    // SSGI only for Epic
+    SetSSGIEnabled(PresetLevel >= 4);
+}
+
+void UUPMSettingsManager::SetAllPostProcessEffects(bool bEnable)
+{
+    SetMotionBlurEnabled(bEnable);
+    SetBloomEnabled(bEnable);
+    SetDepthOfFieldEnabled(bEnable);
+    SetLensFlaresEnabled(bEnable);
+    SetChromaticAberrationEnabled(bEnable);
+    SetFilmGrainEnabled(bEnable);
+    SetVignetteEnabled(bEnable);
+}
+
+void UUPMSettingsManager::EnablePerformanceMode(bool bEnable)
+{
+    if (bEnable)
+    {
+        // Disable expensive features for better performance
+        SetRayTracingEnabled(false);
+        SetLumenEnabled(false);
+        SetSSGIEnabled(false);
+        SetVolumetricFogEnabled(false);
+        SetContactShadowsEnabled(false);
+        SetMotionBlurEnabled(false);
+        SetDepthOfFieldEnabled(false);
+        SetLensFlaresEnabled(false);
+        SetChromaticAberrationEnabled(false);
+        SetFilmGrainEnabled(false);
+
+        // Lower quality settings
+        SetGlobalIlluminationQuality(0);
+        SetReflectionQuality(1);
+        SetAnisotropicFiltering(1);
+
+        // Enable dynamic resolution
+        SetDynamicResolutionEnabled(true);
+        SetMinFrameRateForDynamicRes(30.0f);
+
+        // Lower screen percentage for extra performance
+        SetScreenPercentage(75.0f);
+    }
+    else
+    {
+        // Restore to medium-high settings
+        ApplyQualityPreset(2); // Medium preset
+        SetDynamicResolutionEnabled(false);
+        SetScreenPercentage(100.0f);
+    }
+}
+
+void UUPMSettingsManager::EnableQualityMode(bool bEnable)
+{
+    if (bEnable)
+    {
+        // Enable all visual features
+        ApplyQualityPreset(4); // Epic preset
+        SetScreenPercentage(100.0f);
+        SetDynamicResolutionEnabled(false);
+    }
+    else
+    {
+        // Restore to balanced settings
+        ApplyQualityPreset(2); // Medium preset
+    }
+}
+
 // ==================== Persistence (EXPANDED) ====================
 
 FString UUPMSettingsManager::GetSettingsFilePath() const
@@ -1035,8 +1213,8 @@ bool UUPMSettingsManager::LoadSettings()
     return true;
 }
 
-// Helper macro for JSON serialization
-#define JSON_SET_FIELD(Obj, Field, Value) Obj->SetNumberField(TEXT(#Field), Value)
+// Helper macro for JSON serialization (UE 5.6+ compatible)
+#define JSON_SET_FIELD(Obj, Field, Value) Obj->SetNumberField(TEXT(#Field), static_cast<double>(Value))
 #define JSON_SET_BOOL(Obj, Field, Value) Obj->SetBoolField(TEXT(#Field), Value)
 #define JSON_SET_STRING(Obj, Field, Value) Obj->SetStringField(TEXT(#Field), Value)
 
@@ -1183,157 +1361,157 @@ bool UUPMSettingsManager::JsonToSettings(TSharedPtr<FJsonObject> JsonObject)
 
     // Graphics
     const TSharedPtr<FJsonObject>* GraphicsObject;
-    if (JsonObject->TryGetObjectField("Graphics", GraphicsObject))
+    if (JsonObject->TryGetObjectField(TEXT("Graphics"), GraphicsObject))
     {
-        (*GraphicsObject)->TryGetNumberField("AntiAliasingQuality", CurrentSettings.Graphics.AntiAliasingQuality);
-        (*GraphicsObject)->TryGetNumberField("ShadowQuality", CurrentSettings.Graphics.ShadowQuality);
-        (*GraphicsObject)->TryGetNumberField("ViewDistanceQuality", CurrentSettings.Graphics.ViewDistanceQuality);
-        (*GraphicsObject)->TryGetNumberField("PostProcessQuality", CurrentSettings.Graphics.PostProcessQuality);
-        (*GraphicsObject)->TryGetNumberField("TextureQuality", CurrentSettings.Graphics.TextureQuality);
-        (*GraphicsObject)->TryGetNumberField("EffectsQuality", CurrentSettings.Graphics.EffectsQuality);
-        (*GraphicsObject)->TryGetNumberField("FoliageQuality", CurrentSettings.Graphics.FoliageQuality);
-        (*GraphicsObject)->TryGetNumberField("ShadingQuality", CurrentSettings.Graphics.ShadingQuality);
+        (*GraphicsObject)->TryGetNumberField(TEXT("AntiAliasingQuality"), CurrentSettings.Graphics.AntiAliasingQuality);
+        (*GraphicsObject)->TryGetNumberField(TEXT("ShadowQuality"), CurrentSettings.Graphics.ShadowQuality);
+        (*GraphicsObject)->TryGetNumberField(TEXT("ViewDistanceQuality"), CurrentSettings.Graphics.ViewDistanceQuality);
+        (*GraphicsObject)->TryGetNumberField(TEXT("PostProcessQuality"), CurrentSettings.Graphics.PostProcessQuality);
+        (*GraphicsObject)->TryGetNumberField(TEXT("TextureQuality"), CurrentSettings.Graphics.TextureQuality);
+        (*GraphicsObject)->TryGetNumberField(TEXT("EffectsQuality"), CurrentSettings.Graphics.EffectsQuality);
+        (*GraphicsObject)->TryGetNumberField(TEXT("FoliageQuality"), CurrentSettings.Graphics.FoliageQuality);
+        (*GraphicsObject)->TryGetNumberField(TEXT("ShadingQuality"), CurrentSettings.Graphics.ShadingQuality);
     }
 
     // Rendering (EXPANDED)
     const TSharedPtr<FJsonObject>* RenderingObject;
-    if (JsonObject->TryGetObjectField("Rendering", RenderingObject))
+    if (JsonObject->TryGetObjectField(TEXT("Rendering"), RenderingObject))
     {
-        (*RenderingObject)->TryGetBoolField("EnableLumen", CurrentSettings.Rendering.bEnableLumen);
-        (*RenderingObject)->TryGetBoolField("EnableRayTracing", CurrentSettings.Rendering.bEnableRayTracing);
-        (*RenderingObject)->TryGetBoolField("EnableSSAO", CurrentSettings.Rendering.bEnableSSAO);
-        (*RenderingObject)->TryGetBoolField("EnableSSR", CurrentSettings.Rendering.bEnableSSR);
-        (*RenderingObject)->TryGetBoolField("EnableMotionBlur", CurrentSettings.Rendering.bEnableMotionBlur);
-        (*RenderingObject)->TryGetBoolField("EnableBloom", CurrentSettings.Rendering.bEnableBloom);
-        (*RenderingObject)->TryGetBoolField("EnableDepthOfField", CurrentSettings.Rendering.bEnableDepthOfField);
-        (*RenderingObject)->TryGetBoolField("EnableLensFlares", CurrentSettings.Rendering.bEnableLensFlares);
-        (*RenderingObject)->TryGetBoolField("EnableChromaticAberration", CurrentSettings.Rendering.bEnableChromaticAberration);
-        (*RenderingObject)->TryGetBoolField("EnableFilmGrain", CurrentSettings.Rendering.bEnableFilmGrain);
-        (*RenderingObject)->TryGetBoolField("EnableVignette", CurrentSettings.Rendering.bEnableVignette);
-        (*RenderingObject)->TryGetBoolField("EnableVolumetricFog", CurrentSettings.Rendering.bEnableVolumetricFog);
-        (*RenderingObject)->TryGetNumberField("AnisotropicFiltering", CurrentSettings.Rendering.AnisotropicFiltering);
-        (*RenderingObject)->TryGetBoolField("EnableTAA", CurrentSettings.Rendering.bEnableTAA);
+        (*RenderingObject)->TryGetBoolField(TEXT("EnableLumen"), CurrentSettings.Rendering.bEnableLumen);
+        (*RenderingObject)->TryGetBoolField(TEXT("EnableRayTracing"), CurrentSettings.Rendering.bEnableRayTracing);
+        (*RenderingObject)->TryGetBoolField(TEXT("EnableSSAO"), CurrentSettings.Rendering.bEnableSSAO);
+        (*RenderingObject)->TryGetBoolField(TEXT("EnableSSR"), CurrentSettings.Rendering.bEnableSSR);
+        (*RenderingObject)->TryGetBoolField(TEXT("EnableMotionBlur"), CurrentSettings.Rendering.bEnableMotionBlur);
+        (*RenderingObject)->TryGetBoolField(TEXT("EnableBloom"), CurrentSettings.Rendering.bEnableBloom);
+        (*RenderingObject)->TryGetBoolField(TEXT("EnableDepthOfField"), CurrentSettings.Rendering.bEnableDepthOfField);
+        (*RenderingObject)->TryGetBoolField(TEXT("EnableLensFlares"), CurrentSettings.Rendering.bEnableLensFlares);
+        (*RenderingObject)->TryGetBoolField(TEXT("EnableChromaticAberration"), CurrentSettings.Rendering.bEnableChromaticAberration);
+        (*RenderingObject)->TryGetBoolField(TEXT("EnableFilmGrain"), CurrentSettings.Rendering.bEnableFilmGrain);
+        (*RenderingObject)->TryGetBoolField(TEXT("EnableVignette"), CurrentSettings.Rendering.bEnableVignette);
+        (*RenderingObject)->TryGetBoolField(TEXT("EnableVolumetricFog"), CurrentSettings.Rendering.bEnableVolumetricFog);
+        (*RenderingObject)->TryGetNumberField(TEXT("AnisotropicFiltering"), CurrentSettings.Rendering.AnisotropicFiltering);
+        (*RenderingObject)->TryGetBoolField(TEXT("EnableTAA"), CurrentSettings.Rendering.bEnableTAA);
         int32 UpscalingInt = 0;
-        (*RenderingObject)->TryGetNumberField("UpscalingMode", UpscalingInt);
+        (*RenderingObject)->TryGetNumberField(TEXT("UpscalingMode"), UpscalingInt);
         CurrentSettings.Rendering.UpscalingMode = static_cast<EUPMUpscalingMode>(UpscalingInt);
-        (*RenderingObject)->TryGetNumberField("GlobalIlluminationQuality", CurrentSettings.Rendering.GlobalIlluminationQuality);
-        (*RenderingObject)->TryGetNumberField("ReflectionQuality", CurrentSettings.Rendering.ReflectionQuality);
-        (*RenderingObject)->TryGetBoolField("EnableSSGI", CurrentSettings.Rendering.bEnableSSGI);
-        (*RenderingObject)->TryGetBoolField("EnableContactShadows", CurrentSettings.Rendering.bEnableContactShadows);
+        (*RenderingObject)->TryGetNumberField(TEXT("GlobalIlluminationQuality"), CurrentSettings.Rendering.GlobalIlluminationQuality);
+        (*RenderingObject)->TryGetNumberField(TEXT("ReflectionQuality"), CurrentSettings.Rendering.ReflectionQuality);
+        (*RenderingObject)->TryGetBoolField(TEXT("EnableSSGI"), CurrentSettings.Rendering.bEnableSSGI);
+        (*RenderingObject)->TryGetBoolField(TEXT("EnableContactShadows"), CurrentSettings.Rendering.bEnableContactShadows);
     }
 
     // Performance (EXPANDED)
     const TSharedPtr<FJsonObject>* PerformanceObject;
-    if (JsonObject->TryGetObjectField("Performance", PerformanceObject))
+    if (JsonObject->TryGetObjectField(TEXT("Performance"), PerformanceObject))
     {
-        (*PerformanceObject)->TryGetBoolField("EnableVSync", CurrentSettings.Performance.bEnableVSync);
-        (*PerformanceObject)->TryGetNumberField("FrameRateLimit", CurrentSettings.Performance.FrameRateLimit);
-        (*PerformanceObject)->TryGetBoolField("EnableDynamicResolution", CurrentSettings.Performance.bEnableDynamicResolution);
-        (*PerformanceObject)->TryGetNumberField("MinFrameRateForDynamicRes", CurrentSettings.Performance.MinFrameRateForDynamicRes);
-        (*PerformanceObject)->TryGetBoolField("EnableTripleBuffering", CurrentSettings.Performance.bEnableTripleBuffering);
-        (*PerformanceObject)->TryGetBoolField("EnableAsyncCompute", CurrentSettings.Performance.bEnableAsyncCompute);
-        (*PerformanceObject)->TryGetNumberField("LODDistanceMultiplier", CurrentSettings.Performance.LODDistanceMultiplier);
-        (*PerformanceObject)->TryGetNumberField("ProcessPriority", CurrentSettings.Performance.ProcessPriority);
+        (*PerformanceObject)->TryGetBoolField(TEXT("EnableVSync"), CurrentSettings.Performance.bEnableVSync);
+        (*PerformanceObject)->TryGetNumberField(TEXT("FrameRateLimit"), CurrentSettings.Performance.FrameRateLimit);
+        (*PerformanceObject)->TryGetBoolField(TEXT("EnableDynamicResolution"), CurrentSettings.Performance.bEnableDynamicResolution);
+        (*PerformanceObject)->TryGetNumberField(TEXT("MinFrameRateForDynamicRes"), CurrentSettings.Performance.MinFrameRateForDynamicRes);
+        (*PerformanceObject)->TryGetBoolField(TEXT("EnableTripleBuffering"), CurrentSettings.Performance.bEnableTripleBuffering);
+        (*PerformanceObject)->TryGetBoolField(TEXT("EnableAsyncCompute"), CurrentSettings.Performance.bEnableAsyncCompute);
+        (*PerformanceObject)->TryGetNumberField(TEXT("LODDistanceMultiplier"), CurrentSettings.Performance.LODDistanceMultiplier);
+        (*PerformanceObject)->TryGetNumberField(TEXT("ProcessPriority"), CurrentSettings.Performance.ProcessPriority);
     }
 
     // Display (EXPANDED)
     const TSharedPtr<FJsonObject>* DisplayObject;
-    if (JsonObject->TryGetObjectField("Display", DisplayObject))
+    if (JsonObject->TryGetObjectField(TEXT("Display"), DisplayObject))
     {
         int32 ResX = 1920, ResY = 1080;
-        (*DisplayObject)->TryGetNumberField("ResolutionX", ResX);
-        (*DisplayObject)->TryGetNumberField("ResolutionY", ResY);
+        (*DisplayObject)->TryGetNumberField(TEXT("ResolutionX"), ResX);
+        (*DisplayObject)->TryGetNumberField(TEXT("ResolutionY"), ResY);
         CurrentSettings.Display.Resolution = FIntPoint(ResX, ResY);
 
         int32 WindowModeInt = 0;
-        (*DisplayObject)->TryGetNumberField("WindowMode", WindowModeInt);
+        (*DisplayObject)->TryGetNumberField(TEXT("WindowMode"), WindowModeInt);
         CurrentSettings.Display.WindowMode = static_cast<EWindowMode::Type>(WindowModeInt);
 
-        (*DisplayObject)->TryGetNumberField("Brightness", CurrentSettings.Display.Brightness);
-        (*DisplayObject)->TryGetNumberField("Contrast", CurrentSettings.Display.Contrast);
-        (*DisplayObject)->TryGetBoolField("EnableHDR", CurrentSettings.Display.bEnableHDR);
-        (*DisplayObject)->TryGetNumberField("HDRMaxNits", CurrentSettings.Display.HDRMaxNits);
-        (*DisplayObject)->TryGetNumberField("MonitorIndex", CurrentSettings.Display.MonitorIndex);
-        (*DisplayObject)->TryGetBoolField("BorderlessWindow", CurrentSettings.Display.bBorderlessWindow);
-        (*DisplayObject)->TryGetNumberField("ScreenPercentage", CurrentSettings.Display.ScreenPercentage);
-        (*DisplayObject)->TryGetNumberField("MenuFieldOfView", CurrentSettings.Display.MenuFieldOfView);
-        (*DisplayObject)->TryGetNumberField("AspectRatioOverride", CurrentSettings.Display.AspectRatioOverride);
-        (*DisplayObject)->TryGetNumberField("SafeZoneScale", CurrentSettings.Display.SafeZoneScale);
+        (*DisplayObject)->TryGetNumberField(TEXT("Brightness"), CurrentSettings.Display.Brightness);
+        (*DisplayObject)->TryGetNumberField(TEXT("Contrast"), CurrentSettings.Display.Contrast);
+        (*DisplayObject)->TryGetBoolField(TEXT("EnableHDR"), CurrentSettings.Display.bEnableHDR);
+        (*DisplayObject)->TryGetNumberField(TEXT("HDRMaxNits"), CurrentSettings.Display.HDRMaxNits);
+        (*DisplayObject)->TryGetNumberField(TEXT("MonitorIndex"), CurrentSettings.Display.MonitorIndex);
+        (*DisplayObject)->TryGetBoolField(TEXT("BorderlessWindow"), CurrentSettings.Display.bBorderlessWindow);
+        (*DisplayObject)->TryGetNumberField(TEXT("ScreenPercentage"), CurrentSettings.Display.ScreenPercentage);
+        (*DisplayObject)->TryGetNumberField(TEXT("MenuFieldOfView"), CurrentSettings.Display.MenuFieldOfView);
+        (*DisplayObject)->TryGetNumberField(TEXT("AspectRatioOverride"), CurrentSettings.Display.AspectRatioOverride);
+        (*DisplayObject)->TryGetNumberField(TEXT("SafeZoneScale"), CurrentSettings.Display.SafeZoneScale);
     }
 
     // Audio (EXPANDED)
     const TSharedPtr<FJsonObject>* AudioObject;
-    if (JsonObject->TryGetObjectField("Audio", AudioObject))
+    if (JsonObject->TryGetObjectField(TEXT("Audio"), AudioObject))
     {
-        (*AudioObject)->TryGetNumberField("MasterVolume", CurrentSettings.Audio.MasterVolume);
-        (*AudioObject)->TryGetNumberField("SFXVolume", CurrentSettings.Audio.SFXVolume);
-        (*AudioObject)->TryGetNumberField("MusicVolume", CurrentSettings.Audio.MusicVolume);
-        (*AudioObject)->TryGetNumberField("VoiceDialogVolume", CurrentSettings.Audio.VoiceDialogVolume);
-        (*AudioObject)->TryGetNumberField("AmbientVolume", CurrentSettings.Audio.AmbientVolume);
-        (*AudioObject)->TryGetNumberField("UISoundVolume", CurrentSettings.Audio.UISoundVolume);
-        (*AudioObject)->TryGetNumberField("VoiceChatVolume", CurrentSettings.Audio.VoiceChatVolume);
-        (*AudioObject)->TryGetNumberField("AudioQuality", CurrentSettings.Audio.AudioQuality);
-        (*AudioObject)->TryGetNumberField("SurroundSoundMode", CurrentSettings.Audio.SurroundSoundMode);
-        (*AudioObject)->TryGetBoolField("EnableSpatialAudio", CurrentSettings.Audio.bEnableSpatialAudio);
-        (*AudioObject)->TryGetNumberField("DynamicRange", CurrentSettings.Audio.DynamicRange);
-        (*AudioObject)->TryGetNumberField("SubtitleTextSize", CurrentSettings.Audio.SubtitleTextSize);
-        (*AudioObject)->TryGetNumberField("SubtitleBackgroundOpacity", CurrentSettings.Audio.SubtitleBackgroundOpacity);
+        (*AudioObject)->TryGetNumberField(TEXT("MasterVolume"), CurrentSettings.Audio.MasterVolume);
+        (*AudioObject)->TryGetNumberField(TEXT("SFXVolume"), CurrentSettings.Audio.SFXVolume);
+        (*AudioObject)->TryGetNumberField(TEXT("MusicVolume"), CurrentSettings.Audio.MusicVolume);
+        (*AudioObject)->TryGetNumberField(TEXT("VoiceDialogVolume"), CurrentSettings.Audio.VoiceDialogVolume);
+        (*AudioObject)->TryGetNumberField(TEXT("AmbientVolume"), CurrentSettings.Audio.AmbientVolume);
+        (*AudioObject)->TryGetNumberField(TEXT("UISoundVolume"), CurrentSettings.Audio.UISoundVolume);
+        (*AudioObject)->TryGetNumberField(TEXT("VoiceChatVolume"), CurrentSettings.Audio.VoiceChatVolume);
+        (*AudioObject)->TryGetNumberField(TEXT("AudioQuality"), CurrentSettings.Audio.AudioQuality);
+        (*AudioObject)->TryGetNumberField(TEXT("SurroundSoundMode"), CurrentSettings.Audio.SurroundSoundMode);
+        (*AudioObject)->TryGetBoolField(TEXT("EnableSpatialAudio"), CurrentSettings.Audio.bEnableSpatialAudio);
+        (*AudioObject)->TryGetNumberField(TEXT("DynamicRange"), CurrentSettings.Audio.DynamicRange);
+        (*AudioObject)->TryGetNumberField(TEXT("SubtitleTextSize"), CurrentSettings.Audio.SubtitleTextSize);
+        (*AudioObject)->TryGetNumberField(TEXT("SubtitleBackgroundOpacity"), CurrentSettings.Audio.SubtitleBackgroundOpacity);
     }
 
     // Gameplay (EXPANDED)
     const TSharedPtr<FJsonObject>* GameplayObject;
-    if (JsonObject->TryGetObjectField("Gameplay", GameplayObject))
+    if (JsonObject->TryGetObjectField(TEXT("Gameplay"), GameplayObject))
     {
-        (*GameplayObject)->TryGetNumberField("FOV", CurrentSettings.Gameplay.FOV);
-        (*GameplayObject)->TryGetNumberField("MouseSensitivity", CurrentSettings.Gameplay.MouseSensitivity);
-        (*GameplayObject)->TryGetBoolField("InvertMouseY", CurrentSettings.Gameplay.bInvertMouseY);
-        (*GameplayObject)->TryGetNumberField("ControllerSensitivity", CurrentSettings.Gameplay.ControllerSensitivity);
-        (*GameplayObject)->TryGetNumberField("ControllerDeadZone", CurrentSettings.Gameplay.ControllerDeadZone);
-        (*GameplayObject)->TryGetNumberField("AimAssistStrength", CurrentSettings.Gameplay.AimAssistStrength);
-        (*GameplayObject)->TryGetNumberField("CameraShakeIntensity", CurrentSettings.Gameplay.CameraShakeIntensity);
-        (*GameplayObject)->TryGetNumberField("HeadBobIntensity", CurrentSettings.Gameplay.HeadBobIntensity);
-        (*GameplayObject)->TryGetBoolField("EnableVibration", CurrentSettings.Gameplay.bEnableVibration);
-        (*GameplayObject)->TryGetBoolField("CrouchToggle", CurrentSettings.Gameplay.bCrouchToggle);
-        (*GameplayObject)->TryGetBoolField("SprintToggle", CurrentSettings.Gameplay.bSprintToggle);
-        (*GameplayObject)->TryGetBoolField("EnableAutoRun", CurrentSettings.Gameplay.bEnableAutoRun);
-        (*GameplayObject)->TryGetNumberField("CameraSmoothing", CurrentSettings.Gameplay.CameraSmoothing);
+        (*GameplayObject)->TryGetNumberField(TEXT("FOV"), CurrentSettings.Gameplay.FOV);
+        (*GameplayObject)->TryGetNumberField(TEXT("MouseSensitivity"), CurrentSettings.Gameplay.MouseSensitivity);
+        (*GameplayObject)->TryGetBoolField(TEXT("InvertMouseY"), CurrentSettings.Gameplay.bInvertMouseY);
+        (*GameplayObject)->TryGetNumberField(TEXT("ControllerSensitivity"), CurrentSettings.Gameplay.ControllerSensitivity);
+        (*GameplayObject)->TryGetNumberField(TEXT("ControllerDeadZone"), CurrentSettings.Gameplay.ControllerDeadZone);
+        (*GameplayObject)->TryGetNumberField(TEXT("AimAssistStrength"), CurrentSettings.Gameplay.AimAssistStrength);
+        (*GameplayObject)->TryGetNumberField(TEXT("CameraShakeIntensity"), CurrentSettings.Gameplay.CameraShakeIntensity);
+        (*GameplayObject)->TryGetNumberField(TEXT("HeadBobIntensity"), CurrentSettings.Gameplay.HeadBobIntensity);
+        (*GameplayObject)->TryGetBoolField(TEXT("EnableVibration"), CurrentSettings.Gameplay.bEnableVibration);
+        (*GameplayObject)->TryGetBoolField(TEXT("CrouchToggle"), CurrentSettings.Gameplay.bCrouchToggle);
+        (*GameplayObject)->TryGetBoolField(TEXT("SprintToggle"), CurrentSettings.Gameplay.bSprintToggle);
+        (*GameplayObject)->TryGetBoolField(TEXT("EnableAutoRun"), CurrentSettings.Gameplay.bEnableAutoRun);
+        (*GameplayObject)->TryGetNumberField(TEXT("CameraSmoothing"), CurrentSettings.Gameplay.CameraSmoothing);
     }
 
     // NEW: Accessibility
     const TSharedPtr<FJsonObject>* AccessibilityObject;
-    if (JsonObject->TryGetObjectField("Accessibility", AccessibilityObject))
+    if (JsonObject->TryGetObjectField(TEXT("Accessibility"), AccessibilityObject))
     {
         int32 ColorblindInt = 0;
-        (*AccessibilityObject)->TryGetNumberField("ColorblindMode", ColorblindInt);
+        (*AccessibilityObject)->TryGetNumberField(TEXT("ColorblindMode"), ColorblindInt);
         CurrentSettings.Accessibility.ColorblindMode = static_cast<EUPMColorblindMode>(ColorblindInt);
-        (*AccessibilityObject)->TryGetNumberField("UIScale", CurrentSettings.Accessibility.UIScale);
-        (*AccessibilityObject)->TryGetNumberField("TextSize", CurrentSettings.Accessibility.TextSize);
-        (*AccessibilityObject)->TryGetBoolField("HighContrastMode", CurrentSettings.Accessibility.bHighContrastMode);
-        (*AccessibilityObject)->TryGetBoolField("EnableScreenReader", CurrentSettings.Accessibility.bEnableScreenReader);
-        (*AccessibilityObject)->TryGetBoolField("ReducedMotion", CurrentSettings.Accessibility.bReducedMotion);
-        (*AccessibilityObject)->TryGetBoolField("PhotosensitivityMode", CurrentSettings.Accessibility.bPhotosensitivityMode);
+        (*AccessibilityObject)->TryGetNumberField(TEXT("UIScale"), CurrentSettings.Accessibility.UIScale);
+        (*AccessibilityObject)->TryGetNumberField(TEXT("TextSize"), CurrentSettings.Accessibility.TextSize);
+        (*AccessibilityObject)->TryGetBoolField(TEXT("HighContrastMode"), CurrentSettings.Accessibility.bHighContrastMode);
+        (*AccessibilityObject)->TryGetBoolField(TEXT("EnableScreenReader"), CurrentSettings.Accessibility.bEnableScreenReader);
+        (*AccessibilityObject)->TryGetBoolField(TEXT("ReducedMotion"), CurrentSettings.Accessibility.bReducedMotion);
+        (*AccessibilityObject)->TryGetBoolField(TEXT("PhotosensitivityMode"), CurrentSettings.Accessibility.bPhotosensitivityMode);
     }
 
     // NEW: Network
     const TSharedPtr<FJsonObject>* NetworkObject;
-    if (JsonObject->TryGetObjectField("Network", NetworkObject))
+    if (JsonObject->TryGetObjectField(TEXT("Network"), NetworkObject))
     {
-        (*NetworkObject)->TryGetNumberField("MaxPingThreshold", CurrentSettings.Network.MaxPingThreshold);
-        (*NetworkObject)->TryGetNumberField("NetworkSmoothing", CurrentSettings.Network.NetworkSmoothing);
-        (*NetworkObject)->TryGetNumberField("BandwidthLimitKBps", CurrentSettings.Network.BandwidthLimitKBps);
-        (*NetworkObject)->TryGetStringField("PreferredRegion", CurrentSettings.Network.PreferredRegion);
-        (*NetworkObject)->TryGetBoolField("EnableCrossplay", CurrentSettings.Network.bEnableCrossplay);
+        (*NetworkObject)->TryGetNumberField(TEXT("MaxPingThreshold"), CurrentSettings.Network.MaxPingThreshold);
+        (*NetworkObject)->TryGetNumberField(TEXT("NetworkSmoothing"), CurrentSettings.Network.NetworkSmoothing);
+        (*NetworkObject)->TryGetNumberField(TEXT("BandwidthLimitKBps"), CurrentSettings.Network.BandwidthLimitKBps);
+        (*NetworkObject)->TryGetStringField(TEXT("PreferredRegion"), CurrentSettings.Network.PreferredRegion);
+        (*NetworkObject)->TryGetBoolField(TEXT("EnableCrossplay"), CurrentSettings.Network.bEnableCrossplay);
     }
 
     // NEW: Debug
     const TSharedPtr<FJsonObject>* DebugObject;
-    if (JsonObject->TryGetObjectField("Debug", DebugObject))
+    if (JsonObject->TryGetObjectField(TEXT("Debug"), DebugObject))
     {
-        (*DebugObject)->TryGetBoolField("ShowPerformanceOverlay", CurrentSettings.Debug.bShowPerformanceOverlay);
-        (*DebugObject)->TryGetBoolField("ShowNetworkStats", CurrentSettings.Debug.bShowNetworkStats);
-        (*DebugObject)->TryGetBoolField("DeveloperMode", CurrentSettings.Debug.bDeveloperMode);
-        (*DebugObject)->TryGetBoolField("EnableCrashReporting", CurrentSettings.Debug.bEnableCrashReporting);
-        (*DebugObject)->TryGetBoolField("BenchmarkMode", CurrentSettings.Debug.bBenchmarkMode);
+        (*DebugObject)->TryGetBoolField(TEXT("ShowPerformanceOverlay"), CurrentSettings.Debug.bShowPerformanceOverlay);
+        (*DebugObject)->TryGetBoolField(TEXT("ShowNetworkStats"), CurrentSettings.Debug.bShowNetworkStats);
+        (*DebugObject)->TryGetBoolField(TEXT("DeveloperMode"), CurrentSettings.Debug.bDeveloperMode);
+        (*DebugObject)->TryGetBoolField(TEXT("EnableCrashReporting"), CurrentSettings.Debug.bEnableCrashReporting);
+        (*DebugObject)->TryGetBoolField(TEXT("BenchmarkMode"), CurrentSettings.Debug.bBenchmarkMode);
     }
 
     return true;
