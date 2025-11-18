@@ -200,6 +200,24 @@ void UUPMSettingsManager::SetTextureQuality(int32 Quality)
     ApplyGraphicsSettings();
 }
 
+void UUPMSettingsManager::SetEffectsQuality(int32 Quality)
+{
+    CurrentSettings.Graphics.EffectsQuality = FMath::Clamp(Quality, 0, 4);
+    ApplyGraphicsSettings();
+}
+
+void UUPMSettingsManager::SetFoliageQuality(int32 Quality)
+{
+    CurrentSettings.Graphics.FoliageQuality = FMath::Clamp(Quality, 0, 4);
+    ApplyGraphicsSettings();
+}
+
+void UUPMSettingsManager::SetShadingQuality(int32 Quality)
+{
+    CurrentSettings.Graphics.ShadingQuality = FMath::Clamp(Quality, 0, 4);
+    ApplyGraphicsSettings();
+}
+
 void UUPMSettingsManager::ApplyGraphicsSettings()
 {
     UGameUserSettings* GameSettings = UGameUserSettings::GetGameUserSettings();

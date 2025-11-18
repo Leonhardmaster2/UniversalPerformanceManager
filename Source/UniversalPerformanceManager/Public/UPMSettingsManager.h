@@ -693,6 +693,15 @@ public:
     UFUNCTION(BlueprintCallable, Category = "UPM|Graphics")
     void SetTextureQuality(int32 Quality);
 
+    UFUNCTION(BlueprintCallable, Category = "UPM|Graphics")
+    void SetEffectsQuality(int32 Quality);
+
+    UFUNCTION(BlueprintCallable, Category = "UPM|Graphics")
+    void SetFoliageQuality(int32 Quality);
+
+    UFUNCTION(BlueprintCallable, Category = "UPM|Graphics")
+    void SetShadingQuality(int32 Quality);
+
     // ==================== Rendering Settings ====================
 
     UFUNCTION(BlueprintCallable, Category = "UPM|Rendering")
